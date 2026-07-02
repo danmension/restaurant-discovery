@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
@@ -30,8 +31,13 @@ function PriceTier({ tier }: { tier: number }) {
 
 // A single restaurant card component
 function RestaurantCard({ restaurant }: { restaurant: Restaurant }) {
+  const router = useRouter()
+
   return (
-    <Pressable style={styles.card}>
+    <Pressable
+      style={styles.card}
+      onPress={() => router.push(`/restaurant/${restaurant.id}` as any)}
+    >
       <View style={styles.cardImagePlaceholder}>
         <Text style={styles.cardImageText}>📸</Text>
       </View>
