@@ -1,98 +1,194 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react'
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native'
+import { supabase } from '../../lib/supabase'
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+// --- Types ---
+// This describes the shape of a restaurant object from the database
+type Restaurant = {
+  id: string
+  name: string
+  suburb: string
+  city: string
+  price_tier: number
+  description: string
+}
 
-export default function HomeScreen() {
+// Converts price_tier number (1-4) into dollar signs
+function PriceTier({ tier }: { tier: number }) {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <Text style={styles.price}>{'$'.repeat(tier)}</Text>
+  )
+}
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+// A single restaurant card component
+function RestaurantCard({ restaurant }: { restaurant: Restaurant }) {
+  return (
+    <Pressable style={styles.card}>
+      <View style={styles.cardImagePlaceholder}>
+        <Text style={styles.cardImageText}>📸</Text>
+      </View>
+      <View style={styles.cardBody}>
+        <Text style={styles.cardName}>{restaurant.name}</Text>
+        <Text style={styles.cardSuburb}>
+          {restaurant.suburb}, {restaurant.city}
+        </Text>
+        <Text style={styles.cardDescription} numberOfLines={2}>
+          {restaurant.description}
+        </Text>
+        <PriceTier tier={restaurant.price_tier} />
+      </View>
+    </Pressable>
+  )
+}
+
+// --- Main Browse Screen ---
+export default function BrowseScreen() {
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchRestaurants()
+  }, [])
+
+  async function fetchRestaurants() {
+    setLoading(true)
+    setError(null)
+
+    const { data, error } = await supabase
+      .from('restaurants')
+      .select('id, name, suburb, city, price_tier, description')
+      .eq('status', 'approved')
+      .order('name', { ascending: true })
+
+    if (error) {
+      setError('Could not load restaurants. Please try again.')
+      console.error(error)
+    } else {
+      setRestaurants(data ?? [])
+    }
+
+    setLoading(false)
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#E07340" />
+      </View>
+    )
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>{error}</Text>
+        <Pressable style={styles.retryButton} onPress={fetchRestaurants}>
+          <Text style={styles.retryText}>Try again</Text>
+        </Pressable>
+      </View>
+    )
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Foodmension</Text>
+        <Text style={styles.headerSubtitle}>Discover your next favourite</Text>
+      </View>
+      <FlatList
+        data={restaurants}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <RestaurantCard restaurant={item} />}
+        contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <View style={styles.centered}>
+            <Text style={styles.emptyText}>No restaurants yet</Text>
+          </View>
+        }
+      />
+    </SafeAreaView>
+  )
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-  stepContainer: {
-    gap: 8,
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  list: { padding: 16, gap: 16 },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardImagePlaceholder: {
+    height: 180,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardImageText: { fontSize: 40 },
+  cardBody: { padding: 16 },
+  cardName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+  cardSuburb: {
+    fontSize: 13,
+    color: '#9CA3AF',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  cardDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 10,
   },
-});
+  price: {
+    fontSize: 14,
+    color: '#E07340',
+    fontWeight: '600',
+  },
+  errorText: { color: '#EF4444', fontSize: 15, marginBottom: 12 },
+  retryButton: {
+    backgroundColor: '#E07340',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryText: { color: '#FFFFFF', fontWeight: '600' },
+  emptyText: { color: '#9CA3AF', fontSize: 15 },
+})
