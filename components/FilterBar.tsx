@@ -1,6 +1,6 @@
 // components/FilterBar.tsx
 import { Ionicons } from '@expo/vector-icons'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
     Modal,
     Pressable,
@@ -10,6 +10,7 @@ import {
     Text,
     View,
 } from 'react-native'
+import { supabase } from '../lib/supabase'
 import type { ActiveFilters, Cuisine, GreatForTag, Vibe } from '../types'
 
 // --- Filter Pill ---
@@ -126,19 +127,33 @@ function OptionSheet({
 
 // --- FilterBar ---
 // The main horizontally scrolling filter bar
+// --- FilterBar ---
+// The main horizontally scrolling filter bar
 export default function FilterBar({
-  cuisines,
-  vibes,
-  greatForTags,
   activeFilters,
   onFiltersChange,
 }: {
-  cuisines: Cuisine[]
-  vibes: Vibe[]
-  greatForTags: GreatForTag[]
   activeFilters: ActiveFilters
   onFiltersChange: (filters: ActiveFilters) => void
 }) {
+  const [cuisines, setCuisines] = useState<Cuisine[]>([])
+  const [vibes, setVibes] = useState<Vibe[]>([])
+  const [greatForTags, setGreatForTags] = useState<GreatForTag[]>([])
+
+  useEffect(() => {
+    async function fetchOptions() {
+      const [cuisinesRes, vibesRes, tagsRes] = await Promise.all([
+        supabase.from('cuisines').select('id, name').order('name'),
+        supabase.from('vibes').select('id, name').order('name'),
+        supabase.from('great_for_tags').select('id, name').order('name'),
+      ])
+      if (cuisinesRes.data) setCuisines(cuisinesRes.data)
+      if (vibesRes.data) setVibes(vibesRes.data)
+      if (tagsRes.data) setGreatForTags(tagsRes.data)
+    }
+    fetchOptions()
+  }, [])
+
   const [openSheet, setOpenSheet] = useState <
     'cuisine' | 'vibe' | 'price' | 'greatfor' | null
   >(null)
@@ -157,14 +172,14 @@ export default function FilterBar({
   }
 
   const selectedCuisineName =
-    cuisines.find((c) => c.id === activeFilters.cuisine_id)?.name ?? 'Cuisine'
+  (cuisines ?? []).find((c) => c.id === activeFilters.cuisine_id)?.name ?? 'Cuisine'
 
-  const selectedVibeName =
-    vibes.find((v) => v.id === activeFilters.vibe_id)?.name ?? 'Vibe'
+const selectedVibeName =
+  (vibes ?? []).find((v) => v.id === activeFilters.vibe_id)?.name ?? 'Vibe'
 
-  const selectedGreatForName =
-    greatForTags.find((t) => t.id === activeFilters.great_for_id)?.name ??
-    'Great for'
+const selectedGreatForName =
+  (greatForTags ?? []).find((t) => t.id === activeFilters.great_for_id)?.name ??
+  'Great for'
 
   const priceTierLabel =
     activeFilters.price_tier !== null
