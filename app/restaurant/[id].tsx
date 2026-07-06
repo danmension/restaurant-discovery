@@ -2,17 +2,20 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
-    ActivityIndicator,
-    Alert,
-    Linking,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
+
+
 
 // --- Types ---
 type Tag = { id: string; name: string }
@@ -108,6 +111,7 @@ export default function RestaurantDetailScreen() {
   const [restaurant, setRestaurant] = useState<RestaurantDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { user, favoriteIds, toggleFavorite } = useAuth()
 
   useEffect(() => {
     if (id) fetchRestaurant()
@@ -206,9 +210,23 @@ export default function RestaurantDetailScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Back button */}
-      <Pressable style={styles.backButton} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={22} color="#1A1A1A" />
-      </Pressable>
+<Pressable style={styles.backButton} onPress={() => router.back()}>
+  <Ionicons name="arrow-back" size={22} color="#1A1A1A" />
+</Pressable>
+
+{/* Favorite button */}
+{user && restaurant && (
+  <Pressable
+    style={styles.favoriteButton}
+    onPress={() => toggleFavorite(restaurant.id)}
+  >
+    <Ionicons
+      name={favoriteIds.has(restaurant.id) ? 'heart' : 'heart-outline'}
+      size={22}
+      color={favoriteIds.has(restaurant.id) ? '#E07340' : '#1A1A1A'}
+    />
+  </Pressable>
+)}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -428,4 +446,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryText: { color: '#FFFFFF', fontWeight: '600' },
+
+  favoriteButton: {
+  position: 'absolute',
+  top: 56,
+  right: 16,
+  zIndex: 10,
+  backgroundColor: '#FFFFFF',
+  borderRadius: 20,
+  width: 40,
+  height: 40,
+  alignItems: 'center',
+  justifyContent: 'center',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3,
+},
 })
