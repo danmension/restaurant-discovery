@@ -1,4 +1,6 @@
 // app/(tabs)/index.tsx
+import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
@@ -11,8 +13,10 @@ import {
 } from 'react-native'
 import FilterBar from '../../components/FilterBar'
 import RestaurantCard from '../../components/RestaurantCard'
+import { useAuth } from '../../context/AuthContext'
 import { useRestaurants } from '../../hooks/useRestaurants'
 import type { ActiveFilters } from '../../types'
+
 
 const EMPTY_FILTERS: ActiveFilters = {
   cuisine_id: null,
@@ -22,6 +26,8 @@ const EMPTY_FILTERS: ActiveFilters = {
 }
 
 export default function BrowseScreen() {
+  const { user } = useAuth()
+  const router = useRouter()
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>(EMPTY_FILTERS)
   const { restaurants, loading, error, refetch } = useRestaurants(
     '',
@@ -39,9 +45,19 @@ export default function BrowseScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Foodmension</Text>
-        <Text style={styles.headerSubtitle}>Discover your next favourite</Text>
-      </View>
+  <View>
+    <Text style={styles.headerTitle}>Foodmension</Text>
+    <Text style={styles.headerSubtitle}>Discover your next favourite</Text>
+  </View>
+  {user && (
+    <Pressable
+      style={styles.submitButton}
+      onPress={() => router.push('/submit' as any)}
+    >
+      <Ionicons name="add" size={20} color="#FFFFFF" />
+    </Pressable>
+  )}
+</View>
 
       <FilterBar
         activeFilters={activeFilters}
@@ -97,13 +113,17 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
+  paddingHorizontal: 20,
+  paddingTop: 20,
+  paddingBottom: 16,
+  backgroundColor: '#FFFFFF',
+  borderBottomWidth: 1,
+  borderBottomColor: '#F3F4F6',
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+},
+
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
@@ -131,4 +151,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
+
+  submitButton: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  backgroundColor: '#E07340',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
 })

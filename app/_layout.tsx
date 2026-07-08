@@ -21,6 +21,7 @@ export default function RootLayout() {
           <Stack.Screen name="auth/index" options={{ headerShown: false }} />
           <Stack.Screen name="restaurant/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="collection/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="submit" options={{ headerShown: false }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
