@@ -1,36 +1,96 @@
 // components/RestaurantCard.tsx
+import { Ionicons } from '@expo/vector-icons'
+import { Image } from 'expo-image'
 import { useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Colors, Radii, Shadows, Typography } from '../constants/design'
+import { useAuth } from '../context/AuthContext'
 import type { Restaurant } from '../types'
 
 function PriceTier({ tier }: { tier: number }) {
-  return <Text style={styles.price}>{'$'.repeat(tier)}</Text>
+  return (
+    <Text style={styles.price}>{'$'.repeat(tier)}</Text>
+  )
 }
 
 export default function RestaurantCard({
   restaurant,
+  coverImage,
 }: {
   restaurant: Restaurant
+  coverImage?: string | null
 }) {
   const router = useRouter()
+  const { user, favoriteIds, toggleFavorite } = useAuth()
 
   return (
     <Pressable
-      style={styles.card}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={() => router.push(`/restaurant/${restaurant.id}` as any)}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${restaurant.name} in ${restaurant.suburb}`}
     >
-      <View style={styles.cardImagePlaceholder}>
-        <Text style={styles.cardImageText}>📸</Text>
+      {/* Photo */}
+      <View style={styles.imageContainer}>
+        {coverImage ? (
+          <Image
+            source={{ uri: coverImage }}
+            style={styles.image}
+            contentFit="cover"
+            transition={300}
+            accessibilityLabel={`Photo of ${restaurant.name}`}
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Ionicons
+              name="restaurant-outline"
+              size={32}
+              color={Colors.gray400}
+            />
+          </View>
+        )}
+
+        {/* Favorite button overlay */}
+        {user && (
+          <Pressable
+            style={styles.heartButton}
+            onPress={(e) => {
+              e.stopPropagation()
+              toggleFavorite(restaurant.id)
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              favoriteIds.has(restaurant.id)
+                ? `Remove ${restaurant.name} from favourites`
+                : `Save ${restaurant.name} to favourites`
+            }
+            hitSlop={8}
+          >
+            <Ionicons
+              name={favoriteIds.has(restaurant.id) ? 'heart' : 'heart-outline'}
+              size={18}
+              color={favoriteIds.has(restaurant.id) ? Colors.primary : Colors.white}
+            />
+          </Pressable>
+        )}
       </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardName}>{restaurant.name}</Text>
-        <Text style={styles.cardSuburb}>
+
+      {/* Body */}
+      <View style={styles.body}>
+        <View style={styles.nameRow}>
+          <Text style={styles.name} numberOfLines={1}>
+            {restaurant.name}
+          </Text>
+          <PriceTier tier={restaurant.price_tier} />
+        </View>
+        <Text style={styles.suburb}>
           {restaurant.suburb}, {restaurant.city}
         </Text>
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {restaurant.description}
-        </Text>
-        <PriceTier tier={restaurant.price_tier} />
+        {restaurant.description && (
+          <Text style={styles.description} numberOfLines={2}>
+            {restaurant.description}
+          </Text>
+        )}
       </View>
     </Pressable>
   )
@@ -38,43 +98,70 @@ export default function RestaurantCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    backgroundColor: Colors.white,
+    borderRadius: Radii.lg,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    ...Shadows.md,
   },
-  cardImagePlaceholder: {
+  cardPressed: {
+    opacity: 0.95,
+    transform: [{ scale: 0.99 }],
+  },
+  imageContainer: {
     height: 180,
-    backgroundColor: '#F3F4F6',
+    position: 'relative',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.gray100,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardImageText: { fontSize: 40 },
-  cardBody: { padding: 16 },
-  cardName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 4,
+  heartButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardSuburb: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginBottom: 8,
+  body: {
+    padding: 14,
+    gap: 4,
   },
-  cardDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 10,
+  nameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  name: {
+    fontSize: Typography.xl,
+    fontWeight: Typography.semibold,
+    color: Colors.black,
+    flex: 1,
+  },
+  suburb: {
+    fontSize: Typography.sm,
+    color: Colors.gray400,
+  },
+  description: {
+    fontSize: Typography.base,
+    color: Colors.gray500,
+    lineHeight: Typography.tight,
+    marginTop: 2,
   },
   price: {
-    fontSize: 14,
-    color: '#E07340',
-    fontWeight: '600',
+    fontSize: Typography.base,
+    color: Colors.primary,
+    fontWeight: Typography.semibold,
   },
 })

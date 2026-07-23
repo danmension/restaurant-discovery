@@ -8,6 +8,7 @@ export type Restaurant = {
   city: string
   price_tier: number
   description: string
+  cover_image?: string | null
 }
 
 export type Cuisine = {

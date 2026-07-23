@@ -12,3 +12,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 })
+
+// Helper that returns a Supabase client with the current session token
+// explicitly attached — use this for all write operations
+export async function getAuthenticatedClient() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return supabase
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    },
+  })
+}

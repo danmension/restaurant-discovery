@@ -3,16 +3,16 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useCallback, useState } from 'react'
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
-  View,
+  View
 } from 'react-native'
 import FilterBar from '../../components/FilterBar'
 import RestaurantCard from '../../components/RestaurantCard'
+import { RestaurantCardSkeleton } from '../../components/Skeleton'
 import { useAuth } from '../../context/AuthContext'
 import { useRestaurants } from '../../hooks/useRestaurants'
 import type { ActiveFilters } from '../../types'
@@ -65,10 +65,12 @@ export default function BrowseScreen() {
       />
 
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#E07340" />
-        </View>
-      ) : error ? (
+  <View style={styles.skeletonList}>
+    {[1, 2, 3].map((n) => (
+      <RestaurantCardSkeleton key={n} />
+    ))}
+  </View>
+) : error ? (
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable style={styles.retryButton} onPress={refetch}>
@@ -159,5 +161,10 @@ const styles = StyleSheet.create({
   backgroundColor: '#E07340',
   alignItems: 'center',
   justifyContent: 'center',
+},
+
+skeletonList: {
+  padding: 16,
+  gap: 16,
 },
 })

@@ -1,20 +1,23 @@
 // app/submit.tsx
 import { Ionicons } from '@expo/vector-icons'
+import { Image } from 'expo-image'
+import * as ImagePicker from 'expo-image-picker'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Colors, Typography } from '../constants/design'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -95,6 +98,8 @@ export default function SubmitScreen() {
   const router = useRouter()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [coverPhoto, setCoverPhoto] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [form, setForm] = useState<FormData>({
     name: '',
     description: '',
@@ -107,9 +112,63 @@ export default function SubmitScreen() {
   })
   const [errors, setErrors] = useState<FormErrors>({})
 
+  async function pickAndUploadPhoto() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!permission.granted) {
+      Alert.alert(
+        'Permission needed',
+        'Please allow access to your photo library to add a photo.'
+      )
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'] as any,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    })
+
+    if (result.canceled) return
+
+    setUploadingPhoto(true)
+
+    try {
+      const uri = result.assets[0].uri
+      const filename = uri.split('/').pop() ?? 'photo.jpg'
+      const match = /\.(\w+)$/.exec(filename)
+      const type = match ? `image/${match[1]}` : 'image/jpeg'
+
+      const formData = new FormData()
+      formData.append('file', { uri, name: filename, type } as any)
+      formData.append(
+        'upload_preset',
+        process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET!
+      )
+      formData.append('folder', 'restaurants')
+
+      const cloudName = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        { method: 'POST', body: formData }
+      )
+
+      const data = await response.json()
+      if (data.secure_url) {
+        setCoverPhoto(data.secure_url)
+      } else {
+        Alert.alert('Upload failed', 'Could not upload photo. Please try again.')
+      }
+    } catch (err) {
+      console.error('Upload error:', err)
+      Alert.alert('Upload failed', 'Could not upload photo. Please try again.')
+    }
+
+    setUploadingPhoto(false)
+  }
+
   function updateField(field: keyof FormData, value: string | number | null) {
     setForm((prev) => ({ ...prev, [field]: value }))
-    // Clear the error for this field when user starts typing
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }))
     }
@@ -121,26 +180,21 @@ export default function SubmitScreen() {
     if (!form.name.trim()) {
       newErrors.name = 'Restaurant name is required'
     }
-
     if (!form.suburb.trim()) {
       newErrors.suburb = 'Suburb is required'
     }
-
     if (!form.city.trim()) {
       newErrors.city = 'City is required'
     }
-
     if (form.price_tier === null) {
       newErrors.price_tier = 'Please select a price range'
     }
-
     if (!form.description.trim()) {
       newErrors.description = 'A short description is required'
     } else if (form.description.trim().length < 20) {
       newErrors.description = 'Description should be at least 20 characters'
     }
 
-    // Validate URLs if provided
     const urlFields: (keyof FormData)[] = ['menu_url', 'instagram_url', 'booking_url']
     urlFields.forEach((field) => {
       const value = form[field] as string
@@ -154,22 +208,37 @@ export default function SubmitScreen() {
   }
 
   async function handleSubmit() {
-    if (!user) {
-      Alert.alert('Sign in required', 'Please sign in to submit a restaurant.')
-      return
-    }
+  const { data: { session } } = await supabase.auth.getSession()
 
-    if (!validate()) {
-      Alert.alert(
-        'Please check your submission',
-        'Some required fields are missing or incorrect.'
-      )
-      return
-    }
+  if (!user || !session) {
+    Alert.alert('Sign in required', 'Please sign in to submit a restaurant.')
+    return
+  }
 
-    setLoading(true)
+  if (!validate()) {
+    Alert.alert(
+      'Please check your submission',
+      'Some required fields are missing or incorrect.'
+    )
+    return
+  }
 
-    const { error } = await supabase.from('restaurants').insert({
+  setLoading(true)
+
+
+
+// Use direct REST API call instead of Supabase client
+const response = await fetch(
+  `${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/restaurants`,
+  {
+    method: 'POST',
+    headers: {
+  'Content-Type': 'application/json',
+  'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+  'Authorization': `Bearer ${session?.access_token ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
+  'Prefer': 'return=representation',
+},
+    body: JSON.stringify({
       name: form.name.trim(),
       description: form.description.trim(),
       suburb: form.suburb.trim(),
@@ -180,25 +249,50 @@ export default function SubmitScreen() {
       booking_url: form.booking_url.trim() || null,
       status: 'pending',
       submitted_by: user.id,
-    })
-
-    setLoading(false)
-
-    if (error) {
-      console.error('Submit error:', error)
-      Alert.alert(
-        'Submission failed',
-        'Something went wrong. Please try again.'
-      )
-      return
-    }
-
-    Alert.alert(
-      'Submission received! 🎉',
-      'Thank you for contributing to Foodmension. We will review your submission and add it to the app if it meets our criteria.',
-      [{ text: 'Back to browsing', onPress: () => router.replace('/(tabs)') }]
-    )
+    }),
   }
+)
+
+const responseText = await response.text()
+console.log('Direct API response status:', response.status)
+console.log('Direct API response body:', responseText)
+
+if (!response.ok) {
+  Alert.alert('Submission failed', `Error ${response.status}: ${responseText}`)
+  setLoading(false)
+  return
+}
+
+const restaurantData = JSON.parse(responseText)[0]
+
+if (coverPhoto && restaurantData?.id) {
+  await fetch(
+    `${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/restaurant_photos`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+        'Authorization': `Bearer ${session?.access_token ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        restaurant_id: restaurantData.id,
+        url: coverPhoto,
+        is_cover: true,
+        display_order: 0,
+      }),
+    }
+  )
+}
+
+setLoading(false)
+
+Alert.alert(
+  'Submission received! 🎉',
+  'Thank you for contributing to Foodmension. We will review your submission and add it to the app if it meets our criteria.',
+  [{ text: 'Back to browsing', onPress: () => router.replace('/(tabs)') }]
+)
+}
 
   // Not logged in
   if (!user) {
@@ -253,11 +347,7 @@ export default function SubmitScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>The basics</Text>
 
-            <FormField
-              label="Restaurant name"
-              required
-              error={errors.name}
-            >
+            <FormField label="Restaurant name" required error={errors.name}>
               <TextInput
                 style={[styles.input, errors.name && styles.inputError]}
                 placeholder="e.g. The Test Kitchen"
@@ -268,11 +358,7 @@ export default function SubmitScreen() {
               />
             </FormField>
 
-            <FormField
-              label="Suburb"
-              required
-              error={errors.suburb}
-            >
+            <FormField label="Suburb" required error={errors.suburb}>
               <TextInput
                 style={[styles.input, errors.suburb && styles.inputError]}
                 placeholder="e.g. Brooklyn"
@@ -283,11 +369,7 @@ export default function SubmitScreen() {
               />
             </FormField>
 
-            <FormField
-              label="City"
-              required
-              error={errors.city}
-            >
+            <FormField label="City" required error={errors.city}>
               <TextInput
                 style={[styles.input, errors.city && styles.inputError]}
                 placeholder="e.g. Pretoria"
@@ -333,17 +415,14 @@ export default function SubmitScreen() {
             </FormField>
           </View>
 
-          {/* Optional fields */}
+          {/* Optional links */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Optional links</Text>
             <Text style={styles.sectionHint}>
               These help users find more information — add what you have
             </Text>
 
-            <FormField
-              label="Menu URL"
-              error={errors.menu_url}
-            >
+            <FormField label="Menu URL" error={errors.menu_url}>
               <TextInput
                 style={[styles.input, errors.menu_url && styles.inputError]}
                 placeholder="https://..."
@@ -357,15 +436,9 @@ export default function SubmitScreen() {
               />
             </FormField>
 
-            <FormField
-              label="Instagram URL"
-              error={errors.instagram_url}
-            >
+            <FormField label="Instagram URL" error={errors.instagram_url}>
               <TextInput
-                style={[
-                  styles.input,
-                  errors.instagram_url && styles.inputError,
-                ]}
+                style={[styles.input, errors.instagram_url && styles.inputError]}
                 placeholder="https://instagram.com/..."
                 placeholderTextColor="#9CA3AF"
                 value={form.instagram_url}
@@ -377,15 +450,9 @@ export default function SubmitScreen() {
               />
             </FormField>
 
-            <FormField
-              label="Booking URL"
-              error={errors.booking_url}
-            >
+            <FormField label="Booking URL" error={errors.booking_url}>
               <TextInput
-                style={[
-                  styles.input,
-                  errors.booking_url && styles.inputError,
-                ]}
+                style={[styles.input, errors.booking_url && styles.inputError]}
                 placeholder="https://..."
                 placeholderTextColor="#9CA3AF"
                 value={form.booking_url}
@@ -398,9 +465,49 @@ export default function SubmitScreen() {
             </FormField>
           </View>
 
+          {/* Cover photo */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Cover photo</Text>
+            <Text style={styles.sectionHint}>
+              Add a photo to help users recognise the restaurant
+            </Text>
+
+            <Pressable
+              style={styles.photoUpload}
+              onPress={pickAndUploadPhoto}
+              disabled={uploadingPhoto}
+            >
+              {uploadingPhoto ? (
+                <View style={styles.photoPlaceholder}>
+                  <ActivityIndicator color={Colors.primary} />
+                </View>
+              ) : coverPhoto ? (
+                <Image
+                  source={{ uri: coverPhoto }}
+                  style={styles.photoPreview}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Ionicons
+                    name="camera-outline"
+                    size={32}
+                    color={Colors.gray400}
+                  />
+                  <Text style={styles.photoPlaceholderText}>
+                    Tap to add a photo
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+
           {/* Submit button */}
           <Pressable
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton,
+              loading && styles.submitButtonDisabled,
+            ]}
             onPress={handleSubmit}
             disabled={loading}
           >
@@ -408,7 +515,11 @@ export default function SubmitScreen() {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
-                <Ionicons name="paper-plane-outline" size={18} color="#FFFFFF" />
+                <Ionicons
+                  name="paper-plane-outline"
+                  size={18}
+                  color="#FFFFFF"
+                />
                 <Text style={styles.submitButtonText}>Submit for review</Text>
               </>
             )}
@@ -433,9 +544,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 32,
   },
-  backButton: {
-    padding: 16,
-  },
+  backButton: { padding: 16 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -593,5 +702,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  photoUpload: {
+    height: 180,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.gray200,
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+  },
+  photoPreview: {
+    width: '100%',
+    height: '100%',
+  },
+  photoPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.gray50,
+  },
+  photoPlaceholderText: {
+    fontSize: Typography.base,
+    color: Colors.gray400,
   },
 })

@@ -1,5 +1,6 @@
 // context/AuthContext.tsx
 import { Session, User } from '@supabase/supabase-js'
+import * as Haptics from 'expo-haptics'
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Restaurant } from '../types'
@@ -39,6 +40,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+
+       if (session?.access_token) {
+    supabase.realtime.setAuth(session.access_token)
+       }
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -46,7 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
+
+           if (session?.access_token) {
+      supabase.realtime.setAuth(session.access_token)
       }
+    }
     )
 
     return () => subscription.unsubscribe()
@@ -142,8 +151,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single()
 
         if (data) {
-          setFavoriteRestaurants((prev) =>
-            [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
+          // Optimistic update
+          setFavoriteIds((prev) => {
+            const next = new Set(prev)
+            if (isFavorited) {
+              next.delete(restaurantId)
+            } else {
+              next.add(restaurantId)
+            }
+            return next
+          })
+
+          // Haptic feedback
+          await Haptics.impactAsync(
+            isFavorited
+              ? Haptics.ImpactFeedbackStyle.Light
+              : Haptics.ImpactFeedbackStyle.Medium
           )
         }
       }
